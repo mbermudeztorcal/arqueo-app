@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: arqueo-app
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ARQUEO_DATA_DIR
+        value: /tmp/arqueo_data
