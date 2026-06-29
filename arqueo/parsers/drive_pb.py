@@ -17,9 +17,20 @@ def detect_seccion(filename: str) -> str | None:
     return None
 
 
-def parse(path: str | Path) -> pd.DataFrame:
-    """Devuelve filas con fecha, ingreso, pago y saldo (efectivo)."""
-    sheets = pd.read_excel(path, sheet_name=None, engine="calamine", header=None)
+def _load_sheets(path: str | Path) -> dict:
+    """Lee TODAS las hojas con openpyxl. openpyxl tolera celdas con
+    fechas fuera del rango Python (ej. año 20025), las devuelve como cadenas
+    sin reventar como hace calamine."""
+    return pd.read_excel(path, sheet_name=None, engine="openpyxl", header=None)
+
+
+def parse(path: str | Path, sheets: dict | None = None) -> pd.DataFrame:
+    if sheets is None:
+        sheets = _load_sheets(path)
+    return parse_sheets(sheets)
+
+
+def parse_sheets(sheets: dict) -> pd.DataFrame:
     caja_sheet = None
     for sn in sheets:
         if "CAJA" in sn.upper() and "CONFIG" not in sn.upper():
@@ -54,10 +65,7 @@ def parse(path: str | Path) -> pd.DataFrame:
         try: saldo = float(row[col_saldo[0]]) if col_saldo and pd.notna(row[col_saldo[0]]) else None
         except (TypeError, ValueError): saldo = None
         rows.append({
-            "fecha": f.date(),
-            "ingreso": ingreso,
-            "pago": pago,
-            "saldo": saldo,
+            "fecha": f.date(), "ingreso": ingreso, "pago": pago, "saldo": saldo,
             "concepto": row[col_concepto[0]] if col_concepto else None,
             "cliente": row[col_cliente[0]] if col_cliente else None,
             "notas": row[col_notas[0]] if col_notas else None,
@@ -66,11 +74,9 @@ def parse(path: str | Path) -> pd.DataFrame:
 
 
 def saldos_por_dia(df: pd.DataFrame) -> pd.DataFrame:
-    """Devuelve, por cada fecha presente, el saldo de cierre (último valor)."""
     if df.empty or "saldo" not in df.columns:
         return pd.DataFrame(columns=["fecha","saldo_cierre"])
     df_clean = df[df["saldo"].notna()]
     if df_clean.empty:
         return pd.DataFrame(columns=["fecha","saldo_cierre"])
-    out = df_clean.groupby("fecha").agg(saldo_cierre=("saldo","last")).reset_index()
-    return out
+    return df_clean.groupby("fecha").agg(saldo_cierre=("saldo","last")).reset_index()

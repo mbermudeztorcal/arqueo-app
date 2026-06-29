@@ -14,8 +14,17 @@ def detect_seccion(filename: str) -> str | None:
     return None
 
 
-def parse(path: str | Path) -> pd.DataFrame:
-    sheets = pd.read_excel(path, sheet_name=None, engine="calamine", header=None)
+def _load_sheets(path: str | Path) -> dict:
+    return pd.read_excel(path, sheet_name=None, engine="openpyxl", header=None)
+
+
+def parse(path: str | Path, sheets: dict | None = None) -> pd.DataFrame:
+    if sheets is None:
+        sheets = _load_sheets(path)
+    return parse_sheets(sheets)
+
+
+def parse_sheets(sheets: dict) -> pd.DataFrame:
     torcal_sheet = next((s for s in sheets if "TORCAL" in s.upper()), None)
     if not torcal_sheet:
         return pd.DataFrame()
@@ -51,10 +60,8 @@ def parse(path: str | Path) -> pd.DataFrame:
         try: saldo_f = float(saldo) if saldo is not None and pd.notna(saldo) else None
         except (TypeError, ValueError): saldo_f = None
         rows.append({
-            "fecha": f.date(),
-            "cobro_efectivo": c_cobro,
-            "saldo": saldo_f,
-            "observaciones": obs,
+            "fecha": f.date(), "cobro_efectivo": c_cobro,
+            "saldo": saldo_f, "observaciones": obs,
         })
     return pd.DataFrame(rows)
 
