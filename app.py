@@ -159,14 +159,21 @@ with tab_upload:
                         unsafe_allow_html=True,
                     )
                     st.caption(hint)
+                    upload_key = f"up_{key}_{fecha.isoformat()}"
+                    saved_key = f"saved_{key}_{fecha.isoformat()}"
                     up = st.file_uploader(
                         "Subir", accept_multiple_files=multi,
-                        key=f"up_{key}", label_visibility="collapsed",
+                        key=upload_key, label_visibility="collapsed",
                     )
                     if up:
+                        saved_set = st.session_state.setdefault(saved_key, set())
                         files = up if isinstance(up, list) else [up]
-                        for f in files: save_uploaded(empresa, fecha, key, f)
-                        st.rerun()
+                        nuevos = [f for f in files if f.name not in saved_set]
+                        if nuevos:
+                            for f in nuevos:
+                                save_uploaded(empresa, fecha, key, f)
+                                saved_set.add(f.name)
+                            st.rerun()
                     if existing:
                         for f in existing:
                             c1, c2 = st.columns([5, 1])
