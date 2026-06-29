@@ -127,27 +127,27 @@ with tab_upload:
                         unsafe_allow_html=True,
                     )
                     st.caption(hint)
-                    upload_key = f"up_{key}_{fecha.isoformat()}"
-                    saved_key = f"saved_{key}_{fecha.isoformat()}"
+                    counter_key = f"upcnt_{key}_{fecha.isoformat()}"
+                    counter = st.session_state.get(counter_key, 0)
+                    upload_key = f"up_{key}_{fecha.isoformat()}_{counter}"
                     up = st.file_uploader(
                         "Arrastra o selecciona archivos",
-                        accept_multiple_files=True,  # ← todas las fuentes multi
+                        accept_multiple_files=True,
                         key=upload_key, label_visibility="collapsed",
                     )
                     if up:
-                        saved_set = st.session_state.setdefault(saved_key, set())
-                        nuevos = [f for f in up if f.name not in saved_set]
-                        if nuevos:
-                            for f in nuevos:
-                                save_uploaded(empresa, fecha, key, f)
-                                saved_set.add(f.name)
-                            st.rerun()
+                        for f in up:
+                            save_uploaded(empresa, fecha, key, f)
+                        # Resetear el widget incrementando el contador → próxima ejecución usa nueva key vacía
+                        st.session_state[counter_key] = counter + 1
+                        st.rerun()
                     if existing:
-                        for f in existing:
-                            c1, c2 = st.columns([5, 1])
-                            c1.text(f"📄 {f.name}")
-                            if c2.button("🗑", key=f"del_{key}_{f.name}"):
-                                f.unlink(missing_ok=True); st.rerun()
+                        with st.expander(f"📂 Ver {len(existing)} archivo(s)"):
+                            for f in existing:
+                                c1, c2 = st.columns([5, 1])
+                                c1.text(f"📄 {f.name}")
+                                if c2.button("🗑", key=f"del_{key}_{fecha.isoformat()}_{f.name}"):
+                                    f.unlink(missing_ok=True); st.rerun()
 
     ui.section_title("Previo al arqueo")
     huecos = []
