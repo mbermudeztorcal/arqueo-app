@@ -15,10 +15,19 @@ def detect_seccion(filename: str) -> str | None:
     return None
 
 
-def _load_sheets(path: str | Path) -> dict[str, list[list]]:
+def _load_sheets(path: str | Path, max_rows: int = 2000) -> dict[str, list[list]]:
     wb = load_workbook(filename=str(path), read_only=True, data_only=True)
     try:
-        return {sn: [list(row) for row in wb[sn].iter_rows(values_only=True)] for sn in wb.sheetnames}
+        out = {}
+        for sn in wb.sheetnames:
+            su = sn.upper()
+            if "TORCAL" not in su: continue
+            rows = []
+            for i, row in enumerate(wb[sn].iter_rows(values_only=True, max_row=max_rows)):
+                rows.append(list(row))
+                if i > max_rows: break
+            out[sn] = rows
+        return out
     finally:
         wb.close()
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 from typing import Iterable, Callable
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import streamlit as st
 
@@ -146,17 +147,25 @@ def cargar(
             try: df_bizum = pd.concat([df_bizum, _bizum(str(f), f.stat().st_mtime)], ignore_index=True)
             except Exception as e: st.warning(f"Bizum {f.name}: {e}")
             tick(f"Bizum · {f.name}")
-        # Drive Caja
-        for f in _files_of(uploads_root, empresa, fecha, "drive_caja"):
-            sec = caja_p.detect_seccion(f.name)
-            if not sec:
-                tick(f"Drive Caja · {f.name} (sec?)"); continue
-            try:
-                parsed = _drive_caja(str(f), f.stat().st_mtime)
-                if not parsed["pb"].empty: df_pb[sec] = parsed["pb"]
-                if not parsed["otros"].empty: df_ot[sec] = parsed["otros"]
-            except Exception as e: st.warning(f"Drive Caja {sec}: {e}")
-            tick(f"Drive Caja · {sec}")
+        # Drive Caja — lectura en paralelo (los xlsx son IO-bound, los threads
+        # corren openpyxl simultáneamente y reducen el tiempo en frío drásticamente)
+        caja_files = _files_of(uploads_root, empresa, fecha, "drive_caja")
+        if caja_files:
+            def _do(f):
+                sec = caja_p.detect_seccion(f.name)
+                if not sec: return (None, None, None, f.name)
+                try:
+                    parsed = _drive_caja(str(f), f.stat().st_mtime)
+                    return (sec, parsed["pb"], parsed["otros"], f.name)
+                except Exception as e:
+                    return (sec, None, None, f"{f.name}: {e}")
+            with ThreadPoolExecutor(max_workers=min(8, len(caja_files))) as ex:
+                for sec, pb, ot, name in ex.map(_do, caja_files):
+                    if sec is None:
+                        tick(f"Drive Caja · {name} (sec?)"); continue
+                    if pb is not None and not pb.empty: df_pb[sec] = pb
+                    if ot is not None and not ot.empty: df_ot[sec] = ot
+                    tick(f"Drive Caja · {sec}")
         # Drive Admin
         for f in _files_of(uploads_root, empresa, fecha, "drive_admin"):
             try: df_admin = pd.concat([df_admin, _drive_admin(str(f), f.stat().st_mtime)], ignore_index=True)

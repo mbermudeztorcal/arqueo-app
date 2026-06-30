@@ -60,7 +60,7 @@ with st.sidebar:
     if st.button("♻️ Limpiar caché de parsers"):
         st.cache_data.clear()
         st.toast("Caché de parsers vaciada")
-    st.caption("v0.5.2 spike · Render Free")
+    st.caption("v0.5.3 spike · Render Free")
 
 ui.render_header(empresa, "Arqueo automático multi-fuente")
 
