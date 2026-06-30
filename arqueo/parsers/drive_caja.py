@@ -1,9 +1,9 @@
-"""Parser unificado del Excel Drive 'Caja' de cada sección.
-Carga el archivo una sola vez con openpyxl (tolerante con fechas mal escritas
-en las hojas) y parsea las dos hojas en memoria."""
+"""Parser unificado: lee el archivo una sola vez con openpyxl read_only y
+pasa las hojas (list of lists) a parse_sheets de PB y Otros."""
 from __future__ import annotations
 from pathlib import Path
 import pandas as pd
+from openpyxl import load_workbook
 from . import drive_pb, drive_otros
 
 
@@ -13,14 +13,18 @@ def detect_seccion(filename: str) -> str | None:
 
 def parse(path: str | Path) -> dict:
     out = {"pb": pd.DataFrame(), "otros": pd.DataFrame()}
+    sheets = None
     try:
-        sheets = pd.read_excel(path, sheet_name=None, engine="openpyxl", header=None)
-    except Exception:
-        # Si openpyxl también falla, intentamos calamine como último recurso
+        wb = load_workbook(filename=str(path), read_only=True, data_only=True)
         try:
-            sheets = pd.read_excel(path, sheet_name=None, engine="calamine", header=None)
-        except Exception:
-            return out
+            sheets = {sn: [list(row) for row in wb[sn].iter_rows(values_only=True)]
+                      for sn in wb.sheetnames}
+        finally:
+            wb.close()
+    except Exception:
+        return out
+    if not sheets:
+        return out
     try:
         out["pb"] = drive_pb.parse_sheets(sheets)
     except Exception:

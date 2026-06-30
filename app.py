@@ -60,7 +60,7 @@ with st.sidebar:
     if st.button("♻️ Limpiar caché de parsers"):
         st.cache_data.clear()
         st.toast("Caché de parsers vaciada")
-    st.caption("v0.5 spike · Render Free")
+    st.caption("v0.5.2 spike · Render Free")
 
 ui.render_header(empresa, "Arqueo automático multi-fuente")
 
@@ -229,7 +229,7 @@ with tab_arqueo:
                         "pendiente":"background-color:#dde3ff"}.get(v, "")
             st.dataframe(
                 df_d.style.format({"ERP":"{:,.2f} €","Externo":"{:,.2f} €","Δ":"{:,.2f} €"})
-                     .applymap(color_sev, subset=["Severidad"]),
+                     .map(color_sev, subset=["Severidad"]),
                 use_container_width=True, height=520,
             )
 
@@ -281,7 +281,7 @@ with tab_resumen:
             def cell_color(v):
                 return {"ok":"background-color:#dcf5e3","warn":"background-color:#fff5cc",
                         "error":"background-color:#ffd6d6"}.get(v, "")
-            st.dataframe(pivot.style.applymap(cell_color), use_container_width=True)
+            st.dataframe(pivot.style.map(cell_color), use_container_width=True)
 
         ui.section_title("Detalle por sección · 7 líneas")
         for sec in cfg.IVERALSO_SECS:
@@ -298,7 +298,7 @@ with tab_resumen:
                             "miss":"background-color:#ffd6d6"}.get(v, "")
                 st.dataframe(disp.style.format(
                     {"erp":"{:,.2f} €","externo":"{:,.2f} €","delta":"{:,.2f} €"}
-                    ).applymap(col_est, subset=["estado"]), use_container_width=True)
+                    ).map(col_est, subset=["estado"]), use_container_width=True)
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB: RETIRADAS
@@ -346,7 +346,7 @@ with tab_ret:
             return {"resuelta":"background-color:#dcf5e3",
                     "pendiente_validar":"background-color:#ffd6d6"}.get(v, "")
         st.dataframe(df_r.style.format({"importe":"{:,.2f} €"})
-                          .applymap(color_est, subset=["estado_actual"]),
+                          .map(color_est, subset=["estado_actual"]),
                      use_container_width=True, height=400)
 
     df_admin = data.get("admin", pd.DataFrame())
@@ -402,5 +402,5 @@ with tab_inc:
                     "pendiente_validar":"background-color:#fff5cc",
                     "resuelta":"background-color:#dcf5e3"}.get(v, "")
         st.dataframe(df_inc.style.format({"ERP":"{:,.2f} €","Externo":"{:,.2f} €","Δ":"{:,.2f} €"})
-                          .applymap(color_est, subset=["Estado"]),
+                          .map(color_est, subset=["Estado"]),
                      use_container_width=True, height=520)

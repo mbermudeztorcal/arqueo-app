@@ -1,9 +1,10 @@
-"""Parser de los Excel Drive Otros Permisos (hoja CAJA TORCAL)."""
+"""Parser Drive Otros Permisos (hoja CAJA TORCAL) con openpyxl read_only."""
 from __future__ import annotations
 import datetime as dt
 import re
 from pathlib import Path
 import pandas as pd
+from openpyxl import load_workbook
 
 
 def detect_seccion(filename: str) -> str | None:
@@ -14,8 +15,12 @@ def detect_seccion(filename: str) -> str | None:
     return None
 
 
-def _load_sheets(path: str | Path) -> dict:
-    return pd.read_excel(path, sheet_name=None, engine="openpyxl", header=None)
+def _load_sheets(path: str | Path) -> dict[str, list[list]]:
+    wb = load_workbook(filename=str(path), read_only=True, data_only=True)
+    try:
+        return {sn: [list(row) for row in wb[sn].iter_rows(values_only=True)] for sn in wb.sheetnames}
+    finally:
+        wb.close()
 
 
 def parse(path: str | Path, sheets: dict | None = None) -> pd.DataFrame:
@@ -28,41 +33,48 @@ def parse_sheets(sheets: dict) -> pd.DataFrame:
     torcal_sheet = next((s for s in sheets if "TORCAL" in s.upper()), None)
     if not torcal_sheet:
         return pd.DataFrame()
-    df = sheets[torcal_sheet]
-    df.columns = df.iloc[0]
-    df = df[1:].reset_index(drop=True)
+    raw = sheets[torcal_sheet]
+    if isinstance(raw, pd.DataFrame):
+        raw = raw.values.tolist()
+    if not raw or len(raw) < 2:
+        return pd.DataFrame()
 
-    use_positional = (
-        len([c for c in df.columns if isinstance(c, str) and "fecha" in c.lower()]) == 0
-    )
+    headers = [str(c).strip() if c is not None else "" for c in raw[0]]
+    use_positional = not any("fecha" in h.lower() for h in headers)
+
+    def col(*needles):
+        for i, h in enumerate(headers):
+            hl = h.lower()
+            if all(n in hl for n in needles):
+                return i
+        return None
 
     rows = []
-    for _, row in df.iterrows():
+    for r in raw[1:]:
+        if r is None: continue
         if use_positional:
-            f = row.iloc[0]
-            c_cobro = row.iloc[3] if len(row) > 3 else None
-            saldo = row.iloc[4] if len(row) > 4 else None
-            obs = row.iloc[5] if len(row) > 5 else None
+            f = r[0] if len(r) > 0 else None
+            c_cobro = r[3] if len(r) > 3 else None
+            saldo = r[4] if len(r) > 4 else None
+            obs = r[5] if len(r) > 5 else None
         else:
-            col_fecha = next((c for c in df.columns if isinstance(c, str) and "fecha" in c.lower()), None)
-            col_cobro = next((c for c in df.columns if isinstance(c, str) and "cobro" in c.lower() and "efect" in c.lower()), None)
-            col_saldo = next((c for c in df.columns if isinstance(c, str) and "saldo" in c.lower() and "efect" in c.lower()), None)
-            col_obs = next((c for c in df.columns if isinstance(c, str) and "observ" in c.lower()), None)
-            if not col_fecha or not col_cobro:
-                continue
-            f = row[col_fecha]; c_cobro = row[col_cobro]
-            saldo = row[col_saldo] if col_saldo else None
-            obs = row[col_obs] if col_obs else None
-        if not isinstance(f, (dt.datetime, pd.Timestamp)):
+            i_f = col("fecha"); i_c = col("cobro","efect")
+            i_s = col("saldo","efect"); i_o = col("observ")
+            if i_f is None or i_c is None: continue
+            f = r[i_f] if i_f < len(r) else None
+            c_cobro = r[i_c] if i_c < len(r) else None
+            saldo = r[i_s] if i_s is not None and i_s < len(r) else None
+            obs = r[i_o] if i_o is not None and i_o < len(r) else None
+        if not isinstance(f, (dt.datetime, dt.date)):
             continue
-        try: c_cobro = float(c_cobro) if pd.notna(c_cobro) else 0.0
-        except (TypeError, ValueError): c_cobro = 0.0
-        try: saldo_f = float(saldo) if saldo is not None and pd.notna(saldo) else None
+        if isinstance(f, dt.datetime): fdate = f.date()
+        else: fdate = f
+        try: c_cobro_f = float(c_cobro) if c_cobro is not None else 0.0
+        except (TypeError, ValueError): c_cobro_f = 0.0
+        try: saldo_f = float(saldo) if saldo is not None else None
         except (TypeError, ValueError): saldo_f = None
-        rows.append({
-            "fecha": f.date(), "cobro_efectivo": c_cobro,
-            "saldo": saldo_f, "observaciones": obs,
-        })
+        rows.append({"fecha": fdate, "cobro_efectivo": c_cobro_f,
+                     "saldo": saldo_f, "observaciones": obs})
     return pd.DataFrame(rows)
 
 
